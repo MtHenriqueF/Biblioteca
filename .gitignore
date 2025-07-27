@@ -1,2 +1,35 @@
+# Python generated files
+__pycache__/
+*.pyc
+*.pyd
+*.so
+.Python
+
+# Virtual environments
+venv/
+.venv/
+
+# Ambiente virtual específico 'vbackend' dentro de 'backend/'
+backend/vbackend/ 
+desktop_app/venv/
+web_app/venv/
+
+# Dependency management
+.pip/
+.mypy_cache/
+.pytest_cache/
+
 # Environment variables
 .env
+
+# IDE specific files
+.idea/            
+.vscode/         
+*.sublime-project
+*.sublime-workspace
+.project
+.directory
+
+# Operating System files
+.DS_Store          # macOS
+Thumbs.db          # Windows

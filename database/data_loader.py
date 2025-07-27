@@ -1,17 +1,25 @@
 from faker import Faker
 import psycopg2
 import random
+import os
+from dotenv import load_dotenv
 from datetime import datetime, timedelta
 
 fake = Faker('pt_BR')
 
+load_dotenv(dotenv_path='backend/.env') # Ajuste o caminho se necessário
+DATABASE_URL = os.getenv("DATABASE_URL")
+
 # Configuração do PostgreSQL
-conn = psycopg2.connect(
-    dbname="biblioteca",
-    user="Sirimarco",
-    password="1234",
-    host="localhost"
-)
+# conn = psycopg2.connect(
+#     dbname="biblioteca",
+#     user="Sirimarco",
+#     password="1234",
+#     host="localhost"
+# )
+
+conn = psycopg2.connect(DATABASE_URL)
+
 cursor = conn.cursor()
 
 # Configurações
