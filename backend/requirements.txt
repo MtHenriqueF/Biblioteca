@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+psycopg2-binary
+SQLAlchemy
+python-dotenv
+passlib[bcrypt] # Para hashing de senhas (bcrypt é uma boa escolha)
+PyJWT # Para JSON Web Tokens
+python-multipart # Necessário pelo FastAPI para formulários (se for usar)
+pandas # Para o módulo de relatórios
