@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, contains_eager
 from typing import List
 
 from backend.app.database import engine, Base, get_db
@@ -287,3 +287,122 @@ def read_pagamentos_multa(skip: int = 0, limit: int = 100, db: Session = Depends
         joinedload(models.pagamento_multa.PagamentoMulta.emprestimo)
     ).order_by(models.pagamento_multa.PagamentoMulta.data_pagamento.desc()).offset(skip).limit(limit).all()
     return pagamentos
+
+
+###### PUT E DELETE
+
+def update_db_object(db_obj, update_data):
+    """Atualiza um objeto do banco de dados com dados de um schema Pydantic."""
+    for var, value in update_data.model_dump(exclude_unset=True).items():
+        setattr(db_obj, var, value)
+    return db_obj
+
+@app.put("/api/autores/{autor_id}", response_model=schemas.autor.Autor)
+def update_autor(autor_id: int, autor_data: schemas.autor.AutorUpdate, db: Session = Depends(get_db)):
+    db_autor = db.query(models.autor.Autor).filter(models.autor.Autor.id_autor == autor_id).first()
+    if not db_autor:
+        raise HTTPException(status_code=404, detail="Autor não encontrado")
+    
+    db_autor = update_db_object(db_autor, autor_data)
+    db.commit()
+    db.refresh(db_autor)
+    return db_autor
+
+@app.delete("/api/autores/{autor_id}", status_code=200)
+def delete_autor(autor_id: int, db: Session = Depends(get_db)):
+    db_autor = db.query(models.autor.Autor).filter(models.autor.Autor.id_autor == autor_id).first()
+    if not db_autor:
+        raise HTTPException(status_code=404, detail="Autor não encontrado")
+    
+    # REGRA DE NEGÓCIO: Não deletar autor se ele tiver livros associados.
+    if db_autor.livros:
+        raise HTTPException(status_code=409, detail="Não é possível deletar autor, pois ele possui livros cadastrados.")
+        
+    db.delete(db_autor)
+    db.commit()
+    return {"detail": "Autor deletado com sucesso"}
+
+@app.put("/api/editoras/{editora_id}", response_model=schemas.editora.Editora)
+def update_editora(editora_id: int, editora_data: schemas.editora.EditoraUpdate, db: Session = Depends(get_db)):
+    db_editora = db.query(models.editora.Editora).filter(models.editora.Editora.id_editora == editora_id).first()
+    if not db_editora:
+        raise HTTPException(status_code=404, detail="Editora não encontrada")
+
+    db_editora = update_db_object(db_editora, editora_data)
+    db.commit()
+    db.refresh(db_editora)
+    return db_editora
+
+@app.delete("/api/editoras/{editora_id}", status_code=200)
+def delete_editora(editora_id: int, db: Session = Depends(get_db)):
+    db_editora = db.query(models.editora.Editora).filter(models.editora.Editora.id_editora == editora_id).first()
+    if not db_editora:
+        raise HTTPException(status_code=404, detail="Editora não encontrada")
+
+    # REGRA DE NEGÓCIO: Não deletar editora se ela tiver livros associados.
+    if db_editora.livros:
+        raise HTTPException(status_code=409, detail="Não é possível deletar editora, pois ela possui livros cadastrados.")
+
+    db.delete(db_editora)
+    db.commit()
+    return {"detail": "Editora deletada com sucesso"}
+
+@app.put("/api/usuarios/{usuario_id}", response_model=schemas.usuario.Usuario)
+def update_usuario(usuario_id: int, usuario_data: schemas.usuario.UsuarioUpdate, db: Session = Depends(get_db)):
+    db_usuario = db.query(models.usuario.Usuario).filter(models.usuario.Usuario.id_usuario == usuario_id).first()
+    if not db_usuario:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
+    db_usuario = update_db_object(db_usuario, usuario_data)
+    db.commit()
+    db.refresh(db_usuario)
+    return db_usuario
+
+@app.delete("/api/usuarios/{usuario_id}", status_code=200)
+def delete_usuario(usuario_id: int, db: Session = Depends(get_db)):
+    db_usuario = db.query(models.usuario.Usuario).filter(models.usuario.Usuario.id_usuario == usuario_id).first()
+    if not db_usuario:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
+    # REGRA DE NEGÓCIO: Não deletar usuário se ele tiver histórico de empréstimos ou reservas.
+    if db_usuario.emprestimos or db_usuario.reservas:
+        raise HTTPException(status_code=409, detail="Não é possível deletar usuário, pois ele possui histórico de empréstimos ou reservas.")
+
+    db.delete(db_usuario)
+    db.commit()
+    return {"detail": "Usuário deletado com sucesso"}
+
+@app.put("/api/livros/{isbn}", response_model=schemas.livro.Livro)
+def update_livro(isbn: str, livro_data: schemas.livro.LivroUpdate, db: Session = Depends(get_db)):
+    db_livro = db.query(models.livro.Livro).filter(models.livro.Livro.ISBN == isbn).first()
+    if not db_livro:
+        raise HTTPException(status_code=404, detail="Livro não encontrado")
+
+    db_livro = update_db_object(db_livro, livro_data)
+    db.commit()
+    db.refresh(db_livro)
+    return db_livro
+
+# NOTA: Não implementamos DELETE para Livro, pois ele é central para o histórico.
+# A deleção é bloqueada pela FK em Exemplar, Reserva e Escrito_por.
+# Uma alternativa seria um status 'INATIVO' no modelo Livro.
+
+@app.put("/api/emprestimos/{emprestimo_id}/devolver", response_model=schemas.emprestimo.Emprestimo)
+def devolver_livro(emprestimo_id: int, db: Session = Depends(get_db)):
+    db_emprestimo = db.query(models.emprestimo.Emprestimo).filter(models.emprestimo.Emprestimo.id_emprestimo == emprestimo_id).first()
+    if not db_emprestimo:
+        raise HTTPException(status_code=404, detail="Empréstimo não encontrado")
+
+    if db_emprestimo.status != 'ATIVO' and db_emprestimo.status != 'ATRASADO':
+        raise HTTPException(status_code=400, detail=f"Este empréstimo não pode ser devolvido. Status atual: {db_emprestimo.status}")
+
+    # Atualiza o status do empréstimo
+    db_emprestimo.data_devolucao = date.today()
+    db_emprestimo.status = 'DEVOLVIDO'
+
+    # Libera o exemplar para um novo empréstimo
+    db_emprestimo.exemplar.status = 'LIVRE'
+    
+    db.commit()
+    db.refresh(db_emprestimo)
+    return db_emprestimo
