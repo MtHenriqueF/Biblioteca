@@ -16,3 +16,7 @@ class Exemplar(ExemplarBase):
 
     class Config:
         from_attributes = True
+
+class ExemplarUpdate(BaseModel):
+    status: Optional[str] = None
+    localizacao: Optional[str] = None

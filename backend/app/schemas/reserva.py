@@ -23,3 +23,6 @@ class Reserva(ReservaBase):
 
     class Config:
         from_attributes = True
+    
+class ReservaUpdate(BaseModel):
+    status: Optional[str] = None

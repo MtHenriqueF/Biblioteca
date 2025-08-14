@@ -17,3 +17,9 @@ class Usuario(UsuarioBase):
 
     class Config:
         from_attributes = True
+    
+class UsuarioUpdate(BaseModel):
+    nome: Optional[str] = None
+    email: Optional[str] = None
+    telefone: Optional[str] = None
+    id_endereco: Optional[int] = None #Permite alterar o endereço do usuário

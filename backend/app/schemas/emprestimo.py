@@ -25,3 +25,7 @@ class Emprestimo(EmprestimoBase):
 
     class Config:
         from_attributes = True
+
+class EmprestimoUpdate(BaseModel):
+    status: str #'DEVOLVIDO', 'ATRASO'
+    data_devolucao: date   

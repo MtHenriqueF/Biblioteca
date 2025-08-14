@@ -13,3 +13,7 @@ class Autor(AutorBase):
 
     class Config:
         from_attributes = True
+
+class AutorUpdate(BaseModel):
+    nome: Optional[str] = None
+    nacionalidade: Optional[str] = None
