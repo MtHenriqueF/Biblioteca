@@ -185,3 +185,105 @@ def read_reservas(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)
         .all()
     )
     return reservas
+
+
+from datetime import date, timedelta
+from sqlalchemy.exc import IntegrityError
+
+
+@app.post("/api/exemplares/", response_model=schemas.exemplar.Exemplar)
+def create_exemplar(exemplar_data: schemas.exemplar.ExemplarCreate, db: Session = Depends(get_db)):
+    db_livro = db.query(models.livro.Livro).filter(models.livro.Livro.ISBN == exemplar_data.ISBN).first()
+    if not db_livro:
+        raise HTTPException(status_code=404, detail=f"Livro com ISBN {exemplar_data.ISBN} não encontrado para criar um exemplar.")
+    
+    db_exemplar = models.exemplar.Exemplar(**exemplar_data.model_dump())
+    db.add(db_exemplar)
+    db.commit()
+    db.refresh(db_exemplar)
+    return db_exemplar
+
+@app.get("/api/exemplares/", response_model=List[schemas.exemplar.Exemplar])
+def read_exemplares(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    exemplares = db.query(models.exemplar.Exemplar).options(joinedload(models.exemplar.Exemplar.livro)).offset(skip).limit(limit).all()
+    return exemplares
+
+
+@app.post("/api/emprestimos/", response_model=schemas.emprestimo.Emprestimo)
+def create_emprestimo(emprestimo_data: schemas.emprestimo.EmprestimoCreate, db: Session = Depends(get_db)):
+    db_exemplar = db.query(models.exemplar.Exemplar).filter(models.exemplar.Exemplar.id_exemplar == emprestimo_data.id_exemplar).first()
+    if not db_exemplar:
+        raise HTTPException(status_code=404, detail="Exemplar não encontrado")
+
+    if db_exemplar.status != 'LIVRE':
+        raise HTTPException(status_code=400, detail=f"Exemplar ID {db_exemplar.id_exemplar} não está disponível. Status atual: {db_exemplar.status}")
+
+    db_usuario = db.query(models.usuario.Usuario).filter(models.usuario.Usuario.id_usuario == emprestimo_data.id_usuario).first()
+    if not db_usuario:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
+    db_funcionario = db.query(models.funcionario.Funcionario).filter(models.funcionario.Funcionario.id_funcionario == emprestimo_data.id_funcionario).first()
+    if not db_funcionario:
+        raise HTTPException(status_code=404, detail="Funcionário não encontrado")
+
+    db_exemplar.status = 'EMPRESTADO'
+    
+    data_hoje = date.today()
+    data_prevista = data_hoje + timedelta(days=14)
+
+    db_emprestimo = models.emprestimo.Emprestimo(
+        id_exemplar=emprestimo_data.id_exemplar,
+        id_usuario=emprestimo_data.id_usuario,
+        id_funcionario=emprestimo_data.id_funcionario,
+        data_emprestimo=data_hoje,
+        data_devolucao_prev=data_prevista,
+        status='ATIVO'
+    )
+    
+    db.add(db_emprestimo)
+    db.add(db_exemplar)
+    db.commit()
+    db.refresh(db_emprestimo)
+    return db_emprestimo
+
+@app.get("/api/emprestimos/", response_model=List[schemas.emprestimo.Emprestimo])
+def read_emprestimos(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    emprestimos = db.query(models.emprestimo.Emprestimo).options(
+        joinedload(models.emprestimo.Emprestimo.usuario),
+        joinedload(models.emprestimo.Emprestimo.funcionario),
+        joinedload(models.emprestimo.Emprestimo.exemplar).joinedload(models.exemplar.Exemplar.livro)
+    ).order_by(models.emprestimo.Emprestimo.data_emprestimo.desc()).offset(skip).limit(limit).all()
+    return emprestimos
+
+
+@app.post("/api/pagamentos_multa/", response_model=schemas.pagamento_multa.PagamentoMulta)
+def create_pagamento_multa(pagamento_data: schemas.pagamento_multa.PagamentoMultaCreate, db: Session = Depends(get_db)):
+    db_emprestimo = db.query(models.emprestimo.Emprestimo).filter(models.emprestimo.Emprestimo.id_emprestimo == pagamento_data.id_emprestimo).first()
+    if not db_emprestimo:
+        raise HTTPException(status_code=404, detail=f"Empréstimo com ID {pagamento_data.id_emprestimo} não encontrado.")
+
+    if db_emprestimo.status != 'ATRASADO':
+        raise HTTPException(status_code=400, detail=f"O pagamento de multa só pode ser efetuado para empréstimos com status 'ATRASADO'. Status atual: '{db_emprestimo.status}'.")
+
+    db_pagamento = models.pagamento_multa.PagamentoMulta(
+        id_emprestimo=pagamento_data.id_emprestimo,
+        valor_pago=pagamento_data.valor_pago,
+        data_pagamento=date.today()
+    )
+    
+    try:
+        db.add(db_pagamento)
+        db.commit()
+        db.refresh(db_pagamento)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=f"Já existe um pagamento de multa registrado para o empréstimo ID {pagamento_data.id_emprestimo}.")
+        
+    return db_pagamento
+
+@app.get("/api/pagamentos_multa/", response_model=List[schemas.pagamento_multa.PagamentoMulta])
+def read_pagamentos_multa(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    pagamentos = db.query(models.pagamento_multa.PagamentoMulta).options(
+        joinedload(models.pagamento_multa.PagamentoMulta.emprestimo)
+    ).order_by(models.pagamento_multa.PagamentoMulta.data_pagamento.desc()).offset(skip).limit(limit).all()
+    return pagamentos
