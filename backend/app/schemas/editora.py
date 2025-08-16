@@ -1,5 +1,6 @@
 # backend/app/schemas/editora.py
 from pydantic import BaseModel
+from typing import Optional
 
 class EditoraBase(BaseModel):
     nome: str
@@ -12,3 +13,6 @@ class Editora(EditoraBase):
 
     class Config:
         from_attributes = True
+
+class EditoraUpdate(BaseModel):
+    nome: Optional[str] = None

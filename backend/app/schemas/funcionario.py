@@ -17,3 +17,9 @@ class Funcionario(FuncionarioBase):
 
     class Config:
         from_attributes = True
+
+class FuncionarioUpdate(BaseModel):
+    email: Optional[str] = None
+    nome: Optional[str] = None
+    cargo: Optional[str] = None
+    id_endereco: Optional[int] = None

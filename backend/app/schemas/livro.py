@@ -23,3 +23,10 @@ class Livro(LivroBase):
 
     class Config:
         from_attributes = True
+
+class LivroUpdate(BaseModel):
+    data_publicacao: Optional[date] = None
+    edicao: Optional[int] = None
+    genero: Optional[str] = None
+    titulo: Optional[str] = None
+    id_editora: Optional[int] = None
